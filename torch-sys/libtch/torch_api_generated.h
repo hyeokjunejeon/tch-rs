@@ -92,7 +92,7 @@ void atg__copy_from_and_resize(tensor *, tensor self, tensor dst);
 void atg__copy_from_and_resize_out(tensor *, tensor out, tensor self, tensor dst);
 void atg__copy_from_out(tensor *, tensor out, tensor self, tensor dst, int non_blocking);
 void atg__cslt_compress(tensor *, tensor input);
-void atg__cslt_sparse_mm(tensor *, tensor compressed_A, tensor dense_B, tensor bias, int transpose_result);
+void atg__cslt_sparse_mm(tensor *out__, tensor compressed_A, tensor dense_B, tensor bias, tensor alpha, int out_dtype, int transpose_result);
 void atg__ctc_loss(tensor *, tensor log_probs, tensor targets, int64_t *input_lengths_data, int input_lengths_len, int64_t *target_lengths_data, int target_lengths_len, int64_t blank, int zero_infinity);
 void atg__ctc_loss_backward(tensor *, tensor grad, tensor log_probs, tensor targets, int64_t *input_lengths_data, int input_lengths_len, int64_t *target_lengths_data, int target_lengths_len, tensor neg_log_likelihood, tensor log_alpha, int64_t blank, int zero_infinity);
 void atg__ctc_loss_backward_out(tensor *, tensor out, tensor grad, tensor log_probs, tensor targets, int64_t *input_lengths_data, int input_lengths_len, int64_t *target_lengths_data, int target_lengths_len, tensor neg_log_likelihood, tensor log_alpha, int64_t blank, int zero_infinity);

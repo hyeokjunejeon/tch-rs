@@ -635,9 +635,9 @@ void atg__cslt_compress(tensor *out__, tensor input) {
   )
 }
 
-void atg__cslt_sparse_mm(tensor *out__, tensor compressed_A, tensor dense_B, tensor bias, int transpose_result) {
+void atg__cslt_sparse_mm(tensor *out__, tensor compressed_A, tensor dense_B, tensor bias, tensor alpha, int out_dtype, int transpose_result) {
   PROTECT(
-    auto outputs__ = torch::_cslt_sparse_mm(*compressed_A, *dense_B, (bias ? *bias : torch::Tensor()), (bool)transpose_result);
+    auto outputs__ = torch::_cslt_sparse_mm(*compressed_A, *dense_B, (bias ? *bias : torch::Tensor()), (alpha ? *alpha : torch::Tensor()), out_dtype < 0 ? c10::nullopt : c10::optional<at::ScalarType>(at::ScalarType(out_dtype)), (bool)transpose_result);
     out__[0] = new torch::Tensor(outputs__);
   )
 }
