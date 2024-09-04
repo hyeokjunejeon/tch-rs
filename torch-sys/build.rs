@@ -354,6 +354,7 @@ impl SystemInfo {
         Ok(libtorch_dir.join("libtorch"))
     }
 
+
     fn make(&self, use_cuda: bool, use_hip: bool) {
         let cuda_dependency = if use_cuda || use_hip {
             "libtch/dummy_cuda_dependency.cpp"
@@ -370,10 +371,20 @@ impl SystemInfo {
         println!("cargo:rerun-if-changed=libtch/stb_image_write.h");
         println!("cargo:rerun-if-changed=libtch/stb_image_resize.h");
         println!("cargo:rerun-if-changed=libtch/stb_image.h");
+        println!("cargo:rerun-if-env-changed=LIBTORCH_CXXFLAGS");
+        println!("cargo:rerun-if-env-changed=LIBTORCH_GCC_FALLBACK");
+        println!("cargo:rerun-if-env-changed=LIBTORCH_FORCE_GCC_FALLBACK");
         let mut c_files =
             vec!["libtch/torch_api.cpp", "libtch/torch_api_generated.cpp", cuda_dependency];
         if cfg!(feature = "python-extension") {
-            c_files.push("libtch/torch_python.cpp")
+            c_files.push("libtch/torch_python.cpp");
+        }
+        if let Ok(tch_sys_cxxflags) = env::var("LIBTORCH_CXXFLAGS") {
+            println!("cargo:warning=LIBTORCH_CXXFLAGS found. Overriding CXXFLAGS.");
+            println!("cargo:warning=New CXXFLAGS: {}", tch_sys_cxxflags);
+            env::set_var("CXXFLAGS", &tch_sys_cxxflags);
+        } else {
+            println!("cargo:warning=Using default CXXFLAGS");
         }
 
         match self.os {
@@ -394,30 +405,50 @@ impl SystemInfo {
                     .flag(&format!("-D_GLIBCXX_USE_CXX11_ABI={}", self.cxx11_abi))
                     .files(&c_files);
 
-                // Libtorch requires libstdc++, but some Clang-based compilers don't support
-                // `-stdlib=libstdc++`. Force GCC instead of the generic `cc` in this case.
-                if build.get_compiler().is_like_clang() {
-                    if build
-                        .clone()
-                        .flag("-Werror=unused-command-line-argument")
-                        .flag("-stdlib=libstdc++")
-                        .cargo_warnings(false)
-                        .try_compile("tch")
-                        .is_ok()
-                    {
-                        return;
+                // Check if FORCE_GCC_FALLBACK is defined and set to 1
+                let force_gcc_fallback = env_var_rerun("LIBTORCH_FORCE_GCC_FALLBACK").map(|v| v == "1").unwrap_or(false);
+
+                if force_gcc_fallback || build.get_compiler().is_like_clang() {
+                    if force_gcc_fallback {
+                        println!("cargo:warning=FORCE_GCC_FALLBACK is set. Using GCC...");
+                    } else {
+                        let compile_result = build
+                            .clone()
+                            .flag("-stdlib=libstdc++")
+                            .cargo_warnings(true)
+                            .cargo_debug(true)
+                            .try_compile("tch");
+
+                        match compile_result {
+                            Ok(_) => {
+                                println!("cargo:warning=clang-like");
+                                build.compile("tch");
+                                return;
+                            },
+                            Err(e) => {
+                                println!("cargo:warning=Compilation failed: {}", e);
+                                // 추가적인 에러 처리나 다른 컴파일 옵션 시도 등을 여기에 구현할 수 있습니다.
+                            }
+                        }
+
+                        println!(
+                            "cargo:warning=The current compiler doesn't support libstdc++. \
+                            Falling back to GCC..."
+                        );
                     }
 
-                    println!(
-                        "cargo:warning=The current compiler doesn't support libstdc++. \
-                                       Falling back to GCC..."
-                    );
                     let gcc = env_var_rerun("LIBTORCH_GCC_FALLBACK")
                         .unwrap_or_else(|_| String::from("gcc"));
+                    println!("cargo:warning=Using GCC: {gcc}");
+                    // CXXFLAGS 처리
+                    
                     build.compiler(gcc);
+                } else {
+                    println!("cargo:warning=not clang-like");
                 }
 
                 build.compile("tch");
+
             }
             Os::Windows => {
                 // TODO: Pass "/link" "LIBPATH:{}" to cl.exe in order to emulate rpath.
